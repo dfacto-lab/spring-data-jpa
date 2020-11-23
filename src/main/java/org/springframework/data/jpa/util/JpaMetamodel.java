@@ -15,15 +15,10 @@
  */
 package org.springframework.data.jpa.util;
 
-import java.util.Collection;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-import javax.persistence.metamodel.EntityType;
-import javax.persistence.metamodel.ManagedType;
-import javax.persistence.metamodel.Metamodel;
-import javax.persistence.metamodel.SingularAttribute;
+import javax.persistence.metamodel.*;
 
 import org.springframework.data.util.Lazy;
 import org.springframework.data.util.StreamUtils;
@@ -42,7 +37,7 @@ public class JpaMetamodel {
 
 	private final Metamodel metamodel;
 
-	private Lazy<Collection<Class<?>>> managedTypes;
+	private final Lazy<Collection<Class<?>>> managedTypes;
 
 	/**
 	 * Creates a new {@link JpaMetamodel} for the given JPA {@link Metamodel}.
@@ -56,7 +51,7 @@ public class JpaMetamodel {
 		this.metamodel = metamodel;
 		this.managedTypes = Lazy.of(() -> metamodel.getManagedTypes().stream() //
 				.map(ManagedType::getJavaType) //
-				.filter(it -> it != null) //
+				.filter(Objects::nonNull) //
 				.collect(StreamUtils.toUnmodifiableSet()));
 	}
 
@@ -90,11 +85,36 @@ public class JpaMetamodel {
 		return metamodel.getEntities().stream() //
 				.filter(it -> entity.equals(it.getJavaType())) //
 				.findFirst() //
-				.flatMap(it -> getSingularIdAttribute(it)) //
+				.flatMap(JpaMetamodel::getSingularIdAttribute) //
 				.filter(it -> it.getJavaType().equals(attributeType)) //
 				.map(it -> it.getName().equals(name)) //
 				.orElse(false);
 	}
+
+    /**
+     * Returns whether the attribute of given name us an association
+     * @param entity
+     * @param name
+     * @return
+     */
+	public boolean isAssociation(Class<?> entity, String name) {
+	    return metamodel.getEntities().stream()
+                .filter(it -> entity.equals(it.getJavaType()))
+                .findFirst()
+                .map(it -> it.getAttributes().stream().filter(at -> at.getName().equals(name) )
+                        .findFirst().map(Attribute::isAssociation)
+                        .orElse(false))
+                .orElse(false) ||
+                metamodel.getEmbeddables().stream().filter(it -> entity.equals(it.getJavaType()))
+                        .findFirst()
+                        .map(it -> it.getAttributes().stream().filter(at -> at.getName().equals(name) )
+                                .findFirst().map(Attribute::isAssociation)
+                                .orElse(false))
+                        .orElse(false)
+                ;
+    }
+
+    
 
 	/**
 	 * Wipes the static cache of {@link Metamodel} to {@link JpaMetamodel}.
